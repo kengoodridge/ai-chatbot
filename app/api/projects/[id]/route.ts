@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  *     tags:
  *       - Projects
  *     summary: Get a specific project by ID
- *     description: Returns a project with the specified ID
+ *     description: Returns a project with the specified ID. User can only access their own projects.
  *     security:
  *       - BearerAuth: []
  *     parameters:
@@ -42,6 +42,10 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  *                   type: string
  *                 userId:
  *                   type: string
+ *                   description: ID of the user who owns the project
+ *                 userEmail:
+ *                   type: string
+ *                   description: Email of the user who owns the project
  *                 createdAt:
  *                   type: string
  *                   format: date-time
@@ -97,7 +101,7 @@ export async function GET(
  *     tags:
  *       - Projects
  *     summary: Update a project
- *     description: Update a project with the given ID
+ *     description: Update a project with the given ID. User can only update their own projects.
  *     security:
  *       - BearerAuth: []
  *     parameters:
@@ -138,6 +142,8 @@ export async function GET(
  *         description: Forbidden - user does not own this project
  *       404:
  *         description: Project not found
+ *       500:
+ *         description: Failed to update project or server error
  */
 export async function PUT(
   request: NextRequest,
@@ -180,6 +186,7 @@ export async function PUT(
       id: params.id,
       name: data.name,
       description: data.description,
+      userId: session.user.id,
     });
 
     if (!success) {
@@ -206,7 +213,7 @@ export async function PUT(
  *     tags:
  *       - Projects
  *     summary: Delete a project
- *     description: Delete a project with the given ID
+ *     description: Delete a project with the given ID. User can only delete their own projects.
  *     security:
  *       - BearerAuth: []
  *     parameters:
@@ -232,6 +239,8 @@ export async function PUT(
  *         description: Forbidden - user does not own this project
  *       404:
  *         description: Project not found
+ *       500:
+ *         description: Failed to delete project or server error
  */
 export async function DELETE(
   request: NextRequest,
@@ -261,7 +270,10 @@ export async function DELETE(
       ));
     }
 
-    const success = await deleteProject({ id: params.id });
+    const success = await deleteProject({ 
+      id: params.id,
+      userId: session.user.id
+    });
 
     if (!success) {
       return withCorsHeaders(NextResponse.json(

@@ -384,7 +384,14 @@ export async function createProject({
 
 export async function getProjectById({ id }: { id: string }): Promise<Project | undefined> {
   try {
-    const [selectedProject] = await db.select().from(project).where(eq(project.id, id));
+    const [selectedProject] = await db
+      .select({
+        ...project,
+        userEmail: user.email
+      })
+      .from(project)
+      .leftJoin(user, eq(project.userId, user.id))
+      .where(eq(project.id, id));
     return selectedProject;
   } catch (error) {
     console.error('Failed to get project by id from database');
@@ -395,8 +402,12 @@ export async function getProjectById({ id }: { id: string }): Promise<Project | 
 export async function getProjectsByUserId({ id }: { id: string }): Promise<Project[]> {
   try {
     return await db
-      .select()
+      .select({
+        ...project,
+        userEmail: user.email
+      })
       .from(project)
+      .leftJoin(user, eq(project.userId, user.id))
       .where(eq(project.userId, id))
       .orderBy(desc(project.createdAt));
   } catch (error) {
@@ -409,10 +420,12 @@ export async function updateProject({
   id,
   name,
   description,
+  userId,
 }: {
   id: string;
   name?: string;
   description?: string;
+  userId: string;
 }): Promise<boolean> {
   try {
     const updateData: Partial<Project> = {};
@@ -424,18 +437,29 @@ export async function updateProject({
       return false;
     }
     
-    const result = await db.update(project).set(updateData).where(eq(project.id, id));
-    return true;
+    // Only update if the project belongs to the user
+    const result = await db
+      .update(project)
+      .set(updateData)
+      .where(and(eq(project.id, id), eq(project.userId, userId)));
+    
+    // Check if any rows were affected (returns 0 if no rows matched the condition)
+    return result.rowsAffected > 0;
   } catch (error) {
     console.error('Failed to update project in database');
     throw error;
   }
 }
 
-export async function deleteProject({ id }: { id: string }): Promise<boolean> {
+export async function deleteProject({ id, userId }: { id: string, userId: string }): Promise<boolean> {
   try {
-    await db.delete(project).where(eq(project.id, id));
-    return true;
+    // Only delete if the project belongs to the user
+    const result = await db
+      .delete(project)
+      .where(and(eq(project.id, id), eq(project.userId, userId)));
+    
+    // Check if any rows were affected (returns 0 if no rows matched the condition)
+    return result.rowsAffected > 0;
   } catch (error) {
     console.error('Failed to delete project from database');
     throw error;

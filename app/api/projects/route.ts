@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'; // Ensures the route is not statically o
  *     tags:
  *       - Projects
  *     summary: Create a new project
- *     description: Create a new project with the given name and description
+ *     description: Create a new project with the given name and description. Projects are owned by the authenticated user.
  *     security:
  *       - BearerAuth: []
  *     requestBody:
@@ -46,6 +46,10 @@ export const dynamic = 'force-dynamic'; // Ensures the route is not statically o
  *                   type: string
  *                 userId:
  *                   type: string
+ *                   description: ID of the user who owns the project
+ *                 userEmail:
+ *                   type: string
+ *                   description: Email of the user who owns the project
  *                 createdAt:
  *                   type: string
  *                   format: date-time
@@ -98,7 +102,7 @@ export async function POST(request: NextRequest) {
  *     tags:
  *       - Projects
  *     summary: Get all projects for the authenticated user
- *     description: Returns a list of all projects for the authenticated user
+ *     description: Returns a list of all projects owned by the authenticated user
  *     security:
  *       - BearerAuth: []
  *     responses:
@@ -119,6 +123,10 @@ export async function POST(request: NextRequest) {
  *                     type: string
  *                   userId:
  *                     type: string
+ *                     description: ID of the user who owns the project
+ *                   userEmail:
+ *                     type: string
+ *                     description: Email of the user who owns the project
  *                   createdAt:
  *                     type: string
  *                     format: date-time

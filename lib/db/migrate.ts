@@ -18,17 +18,28 @@ const runMigrate = async () => {
   const start = Date.now();
 
   try {
-    // Read the SQL file
-    const sqlFile = path.join(process.cwd(), 'lib/db/migrations-sqlite/0000_superb_sir_ram.sql');
-    const sql = fs.readFileSync(sqlFile, 'utf8');
-
-    // Split statements at statement-breakpoint
-    const statements = sql.split('--> statement-breakpoint').map(stmt => stmt.trim()).filter(Boolean);
-
-    // Execute each statement
-    for (const statement of statements) {
-      await client.execute(statement);
-      console.log(`✓ Executed statement`);
+    // Get all SQL files in migrations-sqlite directory
+    const migrationsDir = path.join(process.cwd(), 'lib/db/migrations-sqlite');
+    const migrationFiles = fs.readdirSync(migrationsDir)
+      .filter(file => file.endsWith('.sql'))
+      .sort(); // Sort to ensure migrations run in order
+    
+    console.log(`Found migration files: ${migrationFiles.join(', ')}`);
+    
+    // Process each migration file
+    for (const migrationFile of migrationFiles) {
+      console.log(`Processing migration file: ${migrationFile}`);
+      const sqlFile = path.join(migrationsDir, migrationFile);
+      const sql = fs.readFileSync(sqlFile, 'utf8');
+      
+      // Split statements at statement-breakpoint
+      const statements = sql.split('--> statement-breakpoint').map(stmt => stmt.trim()).filter(Boolean);
+      
+      // Execute each statement
+      for (const statement of statements) {
+        await client.execute(statement);
+        console.log(`✓ Executed statement from ${migrationFile}`);
+      }
     }
 
     const end = Date.now();

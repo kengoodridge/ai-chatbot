@@ -117,4 +117,6 @@ export const project = sqliteTable('Project', {
   createdAt: integer('createdAt', { mode: 'timestamp' }).notNull(),
 });
 
-export type Project = InferSelectModel<typeof project>;
+export type Project = InferSelectModel<typeof project> & {
+  userEmail?: string;
+};
