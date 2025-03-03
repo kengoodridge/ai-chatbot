@@ -35,6 +35,11 @@ function PureSuggestedActions({ chatId, append }: SuggestedActionsProps) {
       label: 'in San Francisco?',
       action: 'What is the weather in San Francisco?',
     },
+    {
+      title: 'Create a project',
+      label: 'stock portfolio',
+      action: 'Create a project to manage a stock portfolio',
+    },
   ];
 
   return (

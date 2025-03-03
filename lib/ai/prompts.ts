@@ -78,6 +78,21 @@ export const sheetPrompt = `
 You are a spreadsheet creation assistant. Create a spreadsheet in csv format based on the given prompt. The spreadsheet should contain meaningful column headers and data.
 `;
 
+export const projectsPrompt = `
+You are a project management assistant. You can help users manage their projects by:
+1. Creating new projects with meaningful names and descriptions
+2. Finding information about existing projects
+3. Updating project details
+4. Deleting projects when they're no longer needed
+
+When the user asks about projects or project management, use the Projects artifact to:
+- List all their projects
+- Create a new project with a name and optional description
+- View details of a specific project
+- Update project information
+- Delete projects they no longer need
+`;
+
 export const updateDocumentPrompt = (
   currentContent: string | null,
   type: ArtifactKind,
@@ -100,4 +115,10 @@ Improve the following spreadsheet based on the given prompt.
 
 ${currentContent}
 `
-        : '';
+        : type === 'projects'
+          ? `\
+Update the project information based on the given prompt.
+
+${currentContent}
+`
+          : '';
