@@ -66,25 +66,25 @@ export async function POST(request: Request) {
         system: systemPrompt({ selectedChatModel }),
         messages,
         maxSteps: 5,
-        // experimental_activeTools:
-        //   selectedChatModel === 'chat-model-reasoning'
-        //     ? []
-        //     : [
-        //         'getWeather',
-        //         'createDocument',
-        //         'updateDocument',
-        //         'requestSuggestions',
-        //       ],
+        experimental_activeTools:
+          selectedChatModel === 'chat-model-reasoning'
+            ? []
+            : [
+                'getWeather',
+                'createDocument',
+                'updateDocument',
+                'requestSuggestions',
+              ],
         experimental_transform: smoothStream({ chunking: 'word' }),
         experimental_generateMessageId: generateUUID,
         tools: {
-          // getWeather,
-          // createDocument: createDocument({ session, dataStream }),
-          // updateDocument: updateDocument({ session, dataStream }),
-          // requestSuggestions: requestSuggestions({
-          //   session,
-          //   dataStream,
-          // }),
+          getWeather,
+          createDocument: createDocument({ session, dataStream }),
+          updateDocument: updateDocument({ session, dataStream }),
+          requestSuggestions: requestSuggestions({
+            session,
+            dataStream,
+          }),
         },
         onFinish: async ({ response, reasoning }) => {
           if (session.user?.id) {
@@ -114,6 +114,7 @@ export async function POST(request: Request) {
           isEnabled: true,
           functionId: 'stream-text',
         },
+        maxTokens: 4096
       });
 
       result.consumeStream();
