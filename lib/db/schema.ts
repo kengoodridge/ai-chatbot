@@ -5,6 +5,7 @@ import {
   integer,
   primaryKey,
   foreignKey,
+  unique,
 } from 'drizzle-orm/sqlite-core';
 import { createId } from '@paralleldrive/cuid2';
 
@@ -118,5 +119,47 @@ export const project = sqliteTable('Project', {
 });
 
 export type Project = InferSelectModel<typeof project> & {
+  userEmail?: string;
+};
+
+export const page = sqliteTable('Page', {
+  id: text('id').primaryKey().notNull().$defaultFn(() => createId()),
+  path: text('path').notNull(),
+  htmlContent: text('htmlContent').notNull(),
+  projectId: text('projectId')
+    .notNull()
+    .references(() => project.id),
+  userId: text('userId')
+    .notNull()
+    .references(() => user.id),
+  createdAt: integer('createdAt', { mode: 'timestamp' }).notNull(),
+}, (table) => ({
+  pathUnique: unique().on(table.path)
+}));
+
+export type Page = InferSelectModel<typeof page> & {
+  projectName?: string;
+  userEmail?: string;
+};
+
+export const endpoint = sqliteTable('Endpoint', {
+  id: text('id').primaryKey().notNull().$defaultFn(() => createId()),
+  path: text('path').notNull(),
+  parameters: text('parameters'), // Stored as comma-separated string
+  code: text('code').notNull(), // JavaScript code to be executed
+  httpMethod: text('httpMethod').notNull().default('GET'),
+  projectId: text('projectId')
+    .notNull()
+    .references(() => project.id),
+  userId: text('userId')
+    .notNull()
+    .references(() => user.id),
+  createdAt: integer('createdAt', { mode: 'timestamp' }).notNull(),
+}, (table) => ({
+  pathUnique: unique().on(table.path)
+}));
+
+export type Endpoint = InferSelectModel<typeof endpoint> & {
+  projectName?: string;
   userEmail?: string;
 };
