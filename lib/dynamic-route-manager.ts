@@ -1,6 +1,7 @@
 import * as vm from 'node:vm';
 import { 
-  getAllEndpoints, 
+  getAllEndpoints,
+  getAllPages,
   getEndpointByPath, 
   getPageByPath 
 } from './db/queries';
@@ -15,8 +16,9 @@ interface RouteInfo {
   htmlContent?: string;
 }
 
-export class EndpointManager {
-  private dynamicRoutes: Record<string, RouteInfo> = {};
+export class DynamicRouteManager {
+  // Changed from private to public to allow direct access in update/delete operations
+  public dynamicRoutes: Record<string, RouteInfo> = {};
   private isInitialized: boolean = false;
   private initializationPromise: Promise<void> | null = null;
 
@@ -39,6 +41,16 @@ export class EndpointManager {
           paramList,
           endpoint.code,
           endpoint.httpMethod
+        );
+      }
+      
+      // Load pages from database
+      const pages = await getAllPages();
+      
+      for (const page of pages) {
+        await this.registerPage(
+          page.path,
+          page.htmlContent
         );
       }
       
@@ -112,6 +124,22 @@ export class EndpointManager {
     }
   }
   
+  async registerPage(path: string, htmlContent: string): Promise<void> {
+    console.log(`Registering page ${path}`);
+    
+    try {
+      // Store the page in dynamic routes dictionary
+      this.dynamicRoutes[path] = {
+        type: 'page',
+        path,
+        htmlContent
+      };
+    } catch (error) {
+      console.error(`Error registering page ${path}:`, error);
+      throw error;
+    }
+  }
+  
   // Refresh or add a specific endpoint (e.g., after updates)
   async refreshEndpoint(path: string): Promise<void> {
     const endpoint = await getEndpointByPath({ path });
@@ -125,6 +153,20 @@ export class EndpointManager {
       );
     } else {
       // If endpoint no longer exists in DB, remove it from in-memory routes
+      delete this.dynamicRoutes[path];
+    }
+  }
+  
+  // Refresh or add a specific page (e.g., after updates)
+  async refreshPage(path: string): Promise<void> {
+    const page = await getPageByPath({ path });
+    if (page) {
+      await this.registerPage(
+        page.path,
+        page.htmlContent
+      );
+    } else {
+      // If page no longer exists in DB, remove it from in-memory routes
       delete this.dynamicRoutes[path];
     }
   }
@@ -201,7 +243,14 @@ export class EndpointManager {
     }
     return path;
   }
+  
+  // For debugging - get all registered routes
+  getRegisteredRoutes(): string[] {
+    return Object.keys(this.dynamicRoutes);
+  }
 }
 
 // Create a singleton instance for the application
-export const endpointManager = new EndpointManager();
+export const dynamicRouteManager = new DynamicRouteManager();
+// Alias for backwards compatibility
+export const endpointManager = dynamicRouteManager;

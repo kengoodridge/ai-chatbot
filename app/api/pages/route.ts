@@ -1,7 +1,8 @@
 import { auth } from '@/app/(auth)/auth';
-import { createPage, getPagesByUserId } from '@/lib/db/queries';
+import { createPage, getPagesByUserId, getProjectById } from '@/lib/db/queries';
 import { NextRequest, NextResponse } from 'next/server';
 import { corsMiddleware, withCorsHeaders } from '../cors';
+import { dynamicRouteManager } from '@/lib/dynamic-route-manager';
 
 export const dynamic = 'force-dynamic'; // Ensures the route is not statically optimized
 
@@ -83,15 +84,35 @@ export async function POST(request: NextRequest) {
       ));
     }
 
+    // Verify the project exists and belongs to the user
+    const project = await getProjectById({ id: projectId });
+    if (!project) {
+      return withCorsHeaders(NextResponse.json({ error: 'Project not found' }, { status: 404 }));
+    }
+
+    if (project.userId !== session.user.id) {
+      return withCorsHeaders(NextResponse.json(
+        { error: 'You do not have permission to add pages to this project' },
+        { status: 403 }
+      ));
+    }
+
     // Sanitize the path to ensure it starts with a slash
-    const sanitizedPath = path.startsWith('/') ? path : `/${path}`;
+    const projectName = project.name.toLowerCase().replace(/\s+/g, '-');
+    let sanitizedPath = path.startsWith('/') ? path : `/${path}`;
+    
+    // Create full path with project name prefix
+    const fullPath = `/${projectName}${sanitizedPath}`;
 
     const newPage = await createPage({
-      path: sanitizedPath,
+      path: fullPath,
       htmlContent,
       projectId,
       userId: session.user.id,
     });
+    
+    // Register the page in the dynamic route manager
+    await dynamicRouteManager.registerPage(fullPath, htmlContent);
 
     return withCorsHeaders(NextResponse.json(newPage, { status: 201 }));
   } catch (error) {

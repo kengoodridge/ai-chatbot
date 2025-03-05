@@ -2,7 +2,7 @@ import { auth } from '@/app/(auth)/auth';
 import { createEndpoint, getProjectById } from '@/lib/db/queries';
 import { NextRequest, NextResponse } from 'next/server';
 import { corsMiddleware, withCorsHeaders } from '../../cors';
-import { endpointManager } from '@/lib/endpoint-manager';
+import { dynamicRouteManager } from '@/lib/dynamic-route-manager';
 
 export const dynamic = 'force-dynamic'; // Make sure the route is not statically optimized
 
@@ -146,8 +146,8 @@ function endpoint_function(params) {
       userId: session.user.id,
     });
 
-    // Register the endpoint in the manager
-    await endpointManager.registerEndpoint(
+    // Register the endpoint in the dynamic route manager
+    await dynamicRouteManager.registerEndpoint(
       endpointPath,
       parameters,
       mockCode,

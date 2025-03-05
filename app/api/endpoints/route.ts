@@ -6,7 +6,7 @@ import {
 } from '@/lib/db/queries';
 import { NextRequest, NextResponse } from 'next/server';
 import { corsMiddleware, withCorsHeaders } from '../cors';
-import { endpointManager } from '@/lib/endpoint-manager';
+import { dynamicRouteManager } from '@/lib/dynamic-route-manager';
 
 export const dynamic = 'force-dynamic'; // Ensures the route is not statically optimized
 
@@ -133,8 +133,8 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
     });
 
-    // Register the endpoint in the manager
-    await endpointManager.registerEndpoint(
+    // Register the endpoint in the dynamic route manager
+    await dynamicRouteManager.registerEndpoint(
       fullPath,
       parameters,
       code,

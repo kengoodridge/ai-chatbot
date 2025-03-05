@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { endpointManager } from '@/lib/endpoint-manager';
+import { dynamicRouteManager } from '@/lib/dynamic-route-manager';
 import { corsMiddleware, withCorsHeaders } from '../cors';
 
 export const dynamic = 'force-dynamic'; // Make sure the route is not statically optimized
+
+// This catch-all route handler is used for handling dynamic API endpoints
+// All requests that don't match static routes will be handled here
 
 /**
  * @swagger
@@ -45,7 +48,7 @@ export async function GET(
   if (corsResponse) return corsResponse;
   
   const path = '/' + resolvedParams.path.join('/');
-  const response = await endpointManager.handleRequest(request, path);
+  const response = await dynamicRouteManager.handleRequest(request, path);
   
   // Add CORS headers to the response
   return withCorsHeaders(response);
@@ -93,7 +96,7 @@ export async function POST(
   if (corsResponse) return corsResponse;
   
   const path = '/' + resolvedParams.path.join('/');
-  const response = await endpointManager.handleRequest(request, path);
+  const response = await dynamicRouteManager.handleRequest(request, path);
   
   // Add CORS headers to the response
   return withCorsHeaders(response);

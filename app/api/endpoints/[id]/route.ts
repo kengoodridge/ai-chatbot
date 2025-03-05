@@ -6,7 +6,7 @@ import {
 } from '@/lib/db/queries';
 import { NextRequest, NextResponse } from 'next/server';
 import { corsMiddleware, withCorsHeaders } from '../../cors';
-import { endpointManager } from '@/lib/endpoint-manager';
+import { dynamicRouteManager } from '@/lib/dynamic-route-manager';
 
 export const dynamic = 'force-dynamic'; // Make sure the route is not statically optimized
 
@@ -219,9 +219,9 @@ export async function PUT(
       ));
     }
 
-    // Refresh the endpoint in the manager if it exists
+    // Refresh the endpoint in the dynamic route manager if it exists
     if (endpoint.path) {
-      await endpointManager.refreshEndpoint(endpoint.path);
+      await dynamicRouteManager.refreshEndpoint(endpoint.path);
     }
 
     return withCorsHeaders(NextResponse.json({ message: 'Endpoint updated successfully' }));
@@ -311,9 +311,9 @@ export async function DELETE(
       ));
     }
 
-    // Remove the endpoint from the manager if it exists
+    // Remove the endpoint from the dynamic route manager if it exists
     if (endpoint.path) {
-      await endpointManager.refreshEndpoint(endpoint.path);
+      await dynamicRouteManager.refreshEndpoint(endpoint.path);
     }
 
     return withCorsHeaders(NextResponse.json({ message: 'Endpoint deleted successfully' }));
