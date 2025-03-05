@@ -1,4 +1,4 @@
-import { vm } from 'node:vm';
+import * as vm from 'node:vm';
 import { 
   getAllEndpoints, 
   getEndpointByPath, 
@@ -99,7 +99,10 @@ export class EndpointManager {
           type: 'endpoint',
           path,
           parameters,
-          function: () => ({ error: 'Endpoint code compilation error', details: execError.message }),
+          function: () => ({ 
+            error: 'Endpoint code compilation error', 
+            details: execError instanceof Error ? execError.message : String(execError) 
+          }),
           httpMethod
         };
       }

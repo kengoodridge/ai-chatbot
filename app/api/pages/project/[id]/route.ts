@@ -60,8 +60,9 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -74,7 +75,7 @@ export async function GET(
 
   try {
     // First verify the project exists and belongs to the user
-    const project = await getProjectById({ id: params.id });
+    const project = await getProjectById({ id: resolvedParams.id });
 
     if (!project) {
       return withCorsHeaders(NextResponse.json({ error: 'Project not found' }, { status: 404 }));
@@ -88,7 +89,7 @@ export async function GET(
     }
 
     // Then get all pages for this project
-    const pages = await getPagesByProjectId({ projectId: params.id });
+    const pages = await getPagesByProjectId({ projectId: resolvedParams.id });
     return withCorsHeaders(NextResponse.json(pages));
   } catch (error) {
     console.error('Error fetching pages for project:', error);

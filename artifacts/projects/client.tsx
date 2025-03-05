@@ -519,7 +519,7 @@ export const projectsArtifact = new Artifact<'projects', Metadata>({
                 <Button 
                   onClick={() => setMetadata({...metadata, isCreating: true})}
                 >
-                  <PlusIcon size={18} className="mr-2" /> New Project
+                  <span className="flex items-center"><PlusIcon size={18} /> <span className="ml-2">New Project</span></span>
                 </Button>
               </div>
             </div>

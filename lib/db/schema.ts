@@ -24,7 +24,7 @@ export const chat = sqliteTable('Chat', {
   userId: text('userId')
     .notNull()
     .references(() => user.id),
-  visibility: text('visibility').notNull().default('private'),
+  visibility: text('visibility', { enum: ['private', 'public'] }).notNull().default('private'),
 });
 
 export type Chat = InferSelectModel<typeof chat>;
@@ -68,7 +68,7 @@ export const document = sqliteTable(
     createdAt: integer('createdAt', { mode: 'timestamp' }).notNull(),
     title: text('title').notNull(),
     content: text('content'),
-    kind: text('kind').notNull().default('text'),
+    kind: text('kind', { enum: ['text', 'code', 'image', 'sheet', 'projects'] }).notNull().default('text'),
     userId: text('userId')
       .notNull()
       .references(() => user.id),

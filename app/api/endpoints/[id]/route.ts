@@ -67,8 +67,9 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -80,7 +81,7 @@ export async function GET(
   }
 
   try {
-    const endpoint = await getEndpointById({ id: params.id });
+    const endpoint = await getEndpointById({ id: resolvedParams.id });
 
     if (!endpoint) {
       return withCorsHeaders(NextResponse.json({ error: 'Endpoint not found' }, { status: 404 }));
@@ -165,8 +166,9 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -178,7 +180,7 @@ export async function PUT(
   }
 
   try {
-    const endpoint = await getEndpointById({ id: params.id });
+    const endpoint = await getEndpointById({ id: resolvedParams.id });
 
     if (!endpoint) {
       return withCorsHeaders(NextResponse.json({ error: 'Endpoint not found' }, { status: 404 }));
@@ -202,7 +204,7 @@ export async function PUT(
     }
 
     const success = await updateEndpoint({
-      id: params.id,
+      id: resolvedParams.id,
       path: data.path,
       parameters: data.parameters,
       code: data.code,
@@ -270,8 +272,9 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -283,7 +286,7 @@ export async function DELETE(
   }
 
   try {
-    const endpoint = await getEndpointById({ id: params.id });
+    const endpoint = await getEndpointById({ id: resolvedParams.id });
 
     if (!endpoint) {
       return withCorsHeaders(NextResponse.json({ error: 'Endpoint not found' }, { status: 404 }));
@@ -297,7 +300,7 @@ export async function DELETE(
     }
 
     const success = await deleteEndpoint({ 
-      id: params.id,
+      id: resolvedParams.id,
       userId: session.user.id
     });
 

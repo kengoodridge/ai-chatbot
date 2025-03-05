@@ -9,8 +9,12 @@ config({
 });
 
 const runMigrate = async () => {
+  // Ensure DATABASE_URL is used for the database location
+  const dbUrl = process.env.DATABASE_URL || 'file:./local.db';
+  console.log(`Using database URL: ${dbUrl}`);
+  
   const client = createClient({
-    url: process.env.DATABASE_URL || 'file:./local.db',
+    url: dbUrl,
   });
   const db = drizzle(client);
 

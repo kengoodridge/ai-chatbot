@@ -58,8 +58,9 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -71,7 +72,7 @@ export async function GET(
   }
 
   try {
-    const project = await getProjectById({ id: params.id });
+    const project = await getProjectById({ id: resolvedParams.id });
 
     if (!project) {
       return withCorsHeaders(NextResponse.json({ error: 'Project not found' }, { status: 404 }));
@@ -147,8 +148,9 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -160,7 +162,7 @@ export async function PUT(
   }
 
   try {
-    const project = await getProjectById({ id: params.id });
+    const project = await getProjectById({ id: resolvedParams.id });
 
     if (!project) {
       return withCorsHeaders(NextResponse.json({ error: 'Project not found' }, { status: 404 }));
@@ -183,7 +185,7 @@ export async function PUT(
     }
 
     const success = await updateProject({
-      id: params.id,
+      id: resolvedParams.id,
       name: data.name,
       description: data.description,
       userId: session.user.id,
@@ -244,8 +246,9 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -257,7 +260,7 @@ export async function DELETE(
   }
 
   try {
-    const project = await getProjectById({ id: params.id });
+    const project = await getProjectById({ id: resolvedParams.id });
 
     if (!project) {
       return withCorsHeaders(NextResponse.json({ error: 'Project not found' }, { status: 404 }));
@@ -271,7 +274,7 @@ export async function DELETE(
     }
 
     const success = await deleteProject({ 
-      id: params.id,
+      id: resolvedParams.id,
       userId: session.user.id
     });
 

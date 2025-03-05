@@ -62,8 +62,9 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -75,7 +76,7 @@ export async function GET(
   }
 
   try {
-    const page = await getPageById({ id: params.id });
+    const page = await getPageById({ id: resolvedParams.id });
 
     if (!page) {
       return withCorsHeaders(NextResponse.json({ error: 'Page not found' }, { status: 404 }));
@@ -151,8 +152,9 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -164,7 +166,7 @@ export async function PUT(
   }
 
   try {
-    const page = await getPageById({ id: params.id });
+    const page = await getPageById({ id: resolvedParams.id });
 
     if (!page) {
       return withCorsHeaders(NextResponse.json({ error: 'Page not found' }, { status: 404 }));
@@ -187,7 +189,7 @@ export async function PUT(
     }
 
     const success = await updatePage({
-      id: params.id,
+      id: resolvedParams.id,
       path: data.path,
       htmlContent: data.htmlContent,
       userId: session.user.id,
@@ -248,8 +250,9 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const resolvedParams = await params;
   // Handle OPTIONS request and apply CORS
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
@@ -261,7 +264,7 @@ export async function DELETE(
   }
 
   try {
-    const page = await getPageById({ id: params.id });
+    const page = await getPageById({ id: resolvedParams.id });
 
     if (!page) {
       return withCorsHeaders(NextResponse.json({ error: 'Page not found' }, { status: 404 }));
@@ -275,7 +278,7 @@ export async function DELETE(
     }
 
     const success = await deletePage({ 
-      id: params.id,
+      id: resolvedParams.id,
       userId: session.user.id
     });
 

@@ -38,20 +38,17 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
+  const resolvedParams = await params;
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
   
-  const path = '/' + params.path.join('/');
+  const path = '/' + resolvedParams.path.join('/');
   const response = await endpointManager.handleRequest(request, path);
   
   // Add CORS headers to the response
-  Object.entries(corsMiddleware.headers || {}).forEach(([key, value]) => {
-    response.headers.set(key, value);
-  });
-  
-  return response;
+  return withCorsHeaders(response);
 }
 
 /**
@@ -89,20 +86,17 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
+  const resolvedParams = await params;
   const corsResponse = corsMiddleware(request);
   if (corsResponse) return corsResponse;
   
-  const path = '/' + params.path.join('/');
+  const path = '/' + resolvedParams.path.join('/');
   const response = await endpointManager.handleRequest(request, path);
   
   // Add CORS headers to the response
-  Object.entries(corsMiddleware.headers || {}).forEach(([key, value]) => {
-    response.headers.set(key, value);
-  });
-  
-  return response;
+  return withCorsHeaders(response);
 }
 
 /**
@@ -126,7 +120,7 @@ export async function POST(
  */
 export async function OPTIONS(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   return corsMiddleware(request) || NextResponse.json({}, { status: 204 });
 }

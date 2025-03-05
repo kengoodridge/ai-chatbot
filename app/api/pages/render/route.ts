@@ -64,13 +64,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Return the HTML content with the appropriate content type
-    return new NextResponse(page.htmlContent, {
+    const response = new NextResponse(page.htmlContent, {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        ...corsMiddleware.headers
       }
     });
+    
+    // Add CORS headers
+    return withCorsHeaders(response);
   } catch (error) {
     console.error('Error rendering page:', error);
     return withCorsHeaders(NextResponse.json(

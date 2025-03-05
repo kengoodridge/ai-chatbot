@@ -4,6 +4,7 @@ import { genSaltSync, hashSync } from 'bcrypt-ts';
 import { and, asc, desc, eq, gt, gte, inArray } from 'drizzle-orm';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
+import { createId } from '@paralleldrive/cuid2';
 
 import {
   user,
@@ -191,7 +192,7 @@ export async function saveDocument({
   kind: ArtifactKind;
   content: string;
   userId: string;
-}) {
+}): Promise<any> {
   try {
     return await db.insert(document).values({
       id,
@@ -370,9 +371,13 @@ export async function createProject({
   name: string;
   description?: string;
   userId: string;
-}) {
+}): Promise<Project> {
   try {
-    const newProject = {
+    // Generate a new ID for the project
+    const id = createId();
+    
+    const newProject: Project = {
+      id,
       name,
       description: description || '',
       userId,
@@ -388,14 +393,29 @@ export async function createProject({
 
 export async function getProjectById({ id }: { id: string }): Promise<Project | undefined> {
   try {
-    const [selectedProject] = await db
+    const [result] = await db
       .select({
-        ...project,
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        userId: project.userId,
+        createdAt: project.createdAt,
         userEmail: user.email
       })
       .from(project)
       .leftJoin(user, eq(project.userId, user.id))
       .where(eq(project.id, id));
+    
+    // Convert null to undefined for userEmail
+    const selectedProject: Project = {
+      id: result.id,
+      name: result.name,
+      description: result.description,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      userEmail: result.userEmail ?? undefined
+    };
+    
     return selectedProject;
   } catch (error) {
     console.error('Failed to get project by id from database');
@@ -405,15 +425,29 @@ export async function getProjectById({ id }: { id: string }): Promise<Project | 
 
 export async function getProjectsByUserId({ id }: { id: string }): Promise<Project[]> {
   try {
-    return await db
+    const results = await db
       .select({
-        ...project,
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        userId: project.userId,
+        createdAt: project.createdAt,
         userEmail: user.email
       })
       .from(project)
       .leftJoin(user, eq(project.userId, user.id))
       .where(eq(project.userId, id))
       .orderBy(desc(project.createdAt));
+      
+    // Convert null to undefined for userEmail in each result
+    return results.map(result => ({
+      id: result.id,
+      name: result.name,
+      description: result.description,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      userEmail: result.userEmail ?? undefined
+    }));
   } catch (error) {
     console.error('Failed to get projects by user from database');
     throw error;
@@ -484,7 +518,11 @@ export async function createPage({
   userId: string;
 }): Promise<Page> {
   try {
+    // Generate a new ID for the page
+    const id = createId();
+    
     const newPage = {
+      id,
       path,
       htmlContent,
       projectId,
@@ -517,7 +555,11 @@ export async function createEndpoint({
   userId: string;
 }): Promise<Endpoint> {
   try {
+    // Generate a new ID for the endpoint
+    const id = createId();
+    
     const newEndpoint = {
+      id,
       path,
       parameters: parameters.join(','),
       code,
@@ -536,9 +578,14 @@ export async function createEndpoint({
 
 export async function getPageById({ id }: { id: string }): Promise<Page | undefined> {
   try {
-    const [selectedPage] = await db
+    const [result] = await db
       .select({
-        ...page,
+        id: page.id,
+        path: page.path,
+        htmlContent: page.htmlContent,
+        projectId: page.projectId,
+        userId: page.userId,
+        createdAt: page.createdAt,
         projectName: project.name,
         userEmail: user.email
       })
@@ -546,6 +593,20 @@ export async function getPageById({ id }: { id: string }): Promise<Page | undefi
       .leftJoin(project, eq(page.projectId, project.id))
       .leftJoin(user, eq(page.userId, user.id))
       .where(eq(page.id, id));
+    
+    if (!result) return undefined;
+    
+    // Convert result to correct type
+    const selectedPage: Page = {
+      id: result.id,
+      path: result.path,
+      htmlContent: result.htmlContent,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    };
     return selectedPage;
   } catch (error) {
     console.error('Failed to get page by id from database');
@@ -555,9 +616,14 @@ export async function getPageById({ id }: { id: string }): Promise<Page | undefi
 
 export async function getPageByPath({ path }: { path: string }): Promise<Page | undefined> {
   try {
-    const [selectedPage] = await db
+    const [result] = await db
       .select({
-        ...page,
+        id: page.id,
+        path: page.path,
+        htmlContent: page.htmlContent,
+        projectId: page.projectId,
+        userId: page.userId,
+        createdAt: page.createdAt,
         projectName: project.name,
         userEmail: user.email
       })
@@ -565,6 +631,20 @@ export async function getPageByPath({ path }: { path: string }): Promise<Page | 
       .leftJoin(project, eq(page.projectId, project.id))
       .leftJoin(user, eq(page.userId, user.id))
       .where(eq(page.path, path));
+    
+    if (!result) return undefined;
+    
+    // Convert result to correct type
+    const selectedPage: Page = {
+      id: result.id,
+      path: result.path,
+      htmlContent: result.htmlContent,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    };
     return selectedPage;
   } catch (error) {
     console.error('Failed to get page by path from database');
@@ -574,9 +654,14 @@ export async function getPageByPath({ path }: { path: string }): Promise<Page | 
 
 export async function getPagesByProjectId({ projectId }: { projectId: string }): Promise<Page[]> {
   try {
-    return await db
+    const results = await db
       .select({
-        ...page,
+        id: page.id,
+        path: page.path,
+        htmlContent: page.htmlContent,
+        projectId: page.projectId,
+        userId: page.userId,
+        createdAt: page.createdAt,
         projectName: project.name,
         userEmail: user.email
       })
@@ -585,6 +670,18 @@ export async function getPagesByProjectId({ projectId }: { projectId: string }):
       .leftJoin(user, eq(page.userId, user.id))
       .where(eq(page.projectId, projectId))
       .orderBy(desc(page.createdAt));
+      
+    // Convert results to correct type
+    return results.map(result => ({
+      id: result.id,
+      path: result.path,
+      htmlContent: result.htmlContent,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    }));
   } catch (error) {
     console.error('Failed to get pages by project from database');
     throw error;
@@ -593,9 +690,14 @@ export async function getPagesByProjectId({ projectId }: { projectId: string }):
 
 export async function getPagesByUserId({ userId }: { userId: string }): Promise<Page[]> {
   try {
-    return await db
+    const results = await db
       .select({
-        ...page,
+        id: page.id,
+        path: page.path,
+        htmlContent: page.htmlContent,
+        projectId: page.projectId,
+        userId: page.userId,
+        createdAt: page.createdAt,
         projectName: project.name,
         userEmail: user.email
       })
@@ -604,6 +706,18 @@ export async function getPagesByUserId({ userId }: { userId: string }): Promise<
       .leftJoin(user, eq(page.userId, user.id))
       .where(eq(page.userId, userId))
       .orderBy(desc(page.createdAt));
+      
+    // Convert results to correct type
+    return results.map(result => ({
+      id: result.id,
+      path: result.path,
+      htmlContent: result.htmlContent,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    }));
   } catch (error) {
     console.error('Failed to get pages by user from database');
     throw error;
@@ -612,9 +726,14 @@ export async function getPagesByUserId({ userId }: { userId: string }): Promise<
 
 export async function getAllPages(): Promise<Page[]> {
   try {
-    return await db
+    const results = await db
       .select({
-        ...page,
+        id: page.id,
+        path: page.path,
+        htmlContent: page.htmlContent,
+        projectId: page.projectId,
+        userId: page.userId,
+        createdAt: page.createdAt,
         projectName: project.name,
         userEmail: user.email
       })
@@ -622,6 +741,18 @@ export async function getAllPages(): Promise<Page[]> {
       .leftJoin(project, eq(page.projectId, project.id))
       .leftJoin(user, eq(page.userId, user.id))
       .orderBy(desc(page.createdAt));
+      
+    // Convert results to correct type
+    return results.map(result => ({
+      id: result.id,
+      path: result.path,
+      htmlContent: result.htmlContent,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    }));
   } catch (error) {
     console.error('Failed to get all pages from database');
     throw error;
@@ -680,7 +811,7 @@ export async function deletePage({ id, userId }: { id: string, userId: string })
 
 export async function getEndpointById({ id }: { id: string }): Promise<Endpoint | undefined> {
   try {
-    const [selectedEndpoint] = await db
+    const [result] = await db
       .select({
         id: endpoint.id,
         path: endpoint.path,
@@ -697,6 +828,22 @@ export async function getEndpointById({ id }: { id: string }): Promise<Endpoint 
       .leftJoin(project, eq(endpoint.projectId, project.id))
       .leftJoin(user, eq(endpoint.userId, user.id))
       .where(eq(endpoint.id, id));
+      
+    if (!result) return undefined;
+    
+    // Convert result to correct type
+    const selectedEndpoint: Endpoint = {
+      id: result.id,
+      path: result.path,
+      parameters: result.parameters,
+      code: result.code,
+      httpMethod: result.httpMethod,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    };
     return selectedEndpoint;
   } catch (error) {
     console.error('Failed to get endpoint by id from database');
@@ -706,7 +853,7 @@ export async function getEndpointById({ id }: { id: string }): Promise<Endpoint 
 
 export async function getEndpointByPath({ path }: { path: string }): Promise<Endpoint | undefined> {
   try {
-    const [selectedEndpoint] = await db
+    const [result] = await db
       .select({
         id: endpoint.id,
         path: endpoint.path,
@@ -723,6 +870,22 @@ export async function getEndpointByPath({ path }: { path: string }): Promise<End
       .leftJoin(project, eq(endpoint.projectId, project.id))
       .leftJoin(user, eq(endpoint.userId, user.id))
       .where(eq(endpoint.path, path));
+      
+    if (!result) return undefined;
+    
+    // Convert result to correct type
+    const selectedEndpoint: Endpoint = {
+      id: result.id,
+      path: result.path,
+      parameters: result.parameters,
+      code: result.code,
+      httpMethod: result.httpMethod,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    };
     return selectedEndpoint;
   } catch (error) {
     console.error('Failed to get endpoint by path from database');
@@ -732,7 +895,7 @@ export async function getEndpointByPath({ path }: { path: string }): Promise<End
 
 export async function getEndpointsByProjectId({ projectId }: { projectId: string }): Promise<Endpoint[]> {
   try {
-    return await db
+    const results = await db
       .select({
         id: endpoint.id,
         path: endpoint.path,
@@ -750,6 +913,20 @@ export async function getEndpointsByProjectId({ projectId }: { projectId: string
       .leftJoin(user, eq(endpoint.userId, user.id))
       .where(eq(endpoint.projectId, projectId))
       .orderBy(desc(endpoint.createdAt));
+      
+    // Convert results to correct type
+    return results.map(result => ({
+      id: result.id,
+      path: result.path,
+      parameters: result.parameters,
+      code: result.code,
+      httpMethod: result.httpMethod,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    }));
   } catch (error) {
     console.error('Failed to get endpoints by project from database');
     throw error;
@@ -758,7 +935,7 @@ export async function getEndpointsByProjectId({ projectId }: { projectId: string
 
 export async function getEndpointsByUserId({ userId }: { userId: string }): Promise<Endpoint[]> {
   try {
-    return await db
+    const results = await db
       .select({
         id: endpoint.id,
         path: endpoint.path,
@@ -776,6 +953,20 @@ export async function getEndpointsByUserId({ userId }: { userId: string }): Prom
       .leftJoin(user, eq(endpoint.userId, user.id))
       .where(eq(endpoint.userId, userId))
       .orderBy(desc(endpoint.createdAt));
+      
+    // Convert results to correct type
+    return results.map(result => ({
+      id: result.id,
+      path: result.path,
+      parameters: result.parameters,
+      code: result.code,
+      httpMethod: result.httpMethod,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    }));
   } catch (error) {
     console.error('Failed to get endpoints by user from database');
     throw error;
@@ -784,7 +975,7 @@ export async function getEndpointsByUserId({ userId }: { userId: string }): Prom
 
 export async function getAllEndpoints(): Promise<Endpoint[]> {
   try {
-    return await db
+    const results = await db
       .select({
         id: endpoint.id,
         path: endpoint.path,
@@ -801,6 +992,20 @@ export async function getAllEndpoints(): Promise<Endpoint[]> {
       .leftJoin(project, eq(endpoint.projectId, project.id))
       .leftJoin(user, eq(endpoint.userId, user.id))
       .orderBy(desc(endpoint.createdAt));
+      
+    // Convert results to correct type
+    return results.map(result => ({
+      id: result.id,
+      path: result.path,
+      parameters: result.parameters,
+      code: result.code,
+      httpMethod: result.httpMethod,
+      projectId: result.projectId,
+      userId: result.userId,
+      createdAt: result.createdAt,
+      projectName: result.projectName ?? undefined,
+      userEmail: result.userEmail ?? undefined
+    }));
   } catch (error) {
     console.error('Failed to get all endpoints from database');
     throw error;

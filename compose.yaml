@@ -12,7 +12,17 @@ services:
     build:
       context: .
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
+      DATABASE_URL: "file:/usr/src/app/data/local.db"
+      # Database will be created by migrations at container startup
+      NEXTAUTH_URL: "http://localhost:5555"
+      NEXTAUTH_SECRET: "ThisIsASecretValueForNextAuthReplaceInProduction"
+      NEXTAUTH_TRUST_HOST: "true"
+      AUTH_TRUST_HOST: "true"
+      NEXT_TELEMETRY_DISABLED: 1
+      DEBUG: "*"
+    volumes:
+      - app-data:/usr/src/app/data
     ports:
       - 5555:5555
 
@@ -43,8 +53,8 @@ services:
 #       interval: 10s
 #       timeout: 5s
 #       retries: 5
-# volumes:
-#   db-data:
+volumes:
+  app-data:
 # secrets:
 #   db-password:
 #     file: db/password.txt

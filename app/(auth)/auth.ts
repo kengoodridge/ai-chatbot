@@ -17,6 +17,7 @@ export const {
   signOut,
 } = NextAuth({
   ...authConfig,
+  trustHost: true, // Trust the host header in Docker environment
   providers: [
     Credentials({
       credentials: {},
