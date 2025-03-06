@@ -3,6 +3,10 @@ import { createEndpoint, getProjectById } from '@/lib/db/queries';
 import { NextRequest, NextResponse } from 'next/server';
 import { corsMiddleware, withCorsHeaders } from '../../cors';
 import { dynamicRouteManager } from '@/lib/dynamic-route-manager';
+import { z } from 'zod';
+import { streamObject } from 'ai';
+
+const { myProvider, DEFAULT_CHAT_MODEL } = await import('@/lib/ai/models');
 
 export const dynamic = 'force-dynamic'; // Make sure the route is not statically optimized
 
@@ -13,7 +17,7 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  *     tags:
  *       - Endpoints
  *     summary: Generate a new endpoint with AI
- *     description: Generate a new endpoint with AI based on a description and add it to a project (mock implementation)
+ *     description: Generate a new endpoint with AI based on a description and add it to a project
  *     security:
  *       - BearerAuth: []
  *     requestBody:
@@ -32,6 +36,9 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  *               projectId:
  *                 type: string
  *                 description: ID of the project this endpoint belongs to
+ *               model:
+ *                 type: string
+ *                 description: Optional model ID to use for generation (default is chat-model-small)
  *     parameters:
  *       - in: header
  *         name: x-preferred-language
@@ -89,11 +96,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { description, projectId } = await request.json();
+    const { description, projectId, model = DEFAULT_CHAT_MODEL } = await request.json();
 
     if (!description || !projectId) {
       return withCorsHeaders(NextResponse.json(
         { error: 'Description and project ID are required' },
+        { status: 400 }
+      ));
+    }
+    
+    // Validate model
+    if (!myProvider.languageModel(model)) {
+      return withCorsHeaders(NextResponse.json(
+        { error: 'Invalid model specified' },
         { status: 400 }
       ));
     }
@@ -112,26 +127,100 @@ export async function POST(request: NextRequest) {
       ));
     }
 
-    // MOCK IMPLEMENTATION ONLY
-    // Instead of using AI to generate the endpoint, we'll use a template based on the description
+    // Use AI to generate the endpoint code and configuration
     const projectName = project.name.toLowerCase().replace(/\s+/g, '-');
     const endpointSlug = description.toLowerCase().replace(/\s+/g, '-');
-    const endpointPath = `/api/${projectName}/${endpointSlug}`;
-    
-    // Create mock parameters
-    const parameters = ['query'];
+    const basePath = `/api/${projectName}/${endpointSlug}`;
     
     // Get the optional language parameter or default to JavaScript
     const language = request.headers.get('x-preferred-language') === 'python' ? 'python' : 'javascript';
     
-    // Create mock code based on the description and language
-    let mockCode;
+    // Define a schema for the AI response
+    const endpointSchema = z.object({
+      path: z.string().optional(),
+      parameters: z.array(z.string()).optional(),
+      code: z.string(),
+      httpMethod: z.enum(['GET', 'POST']).optional(),
+    });
     
-    if (language === 'javascript') {
-      mockCode = `
+    // Create a system prompt based on the language
+    const systemPrompt = language === 'javascript' 
+      ? `You are an API endpoint generator that creates JavaScript endpoints for a web application. 
+Create a well-structured endpoint handler function named 'endpoint_function' that takes a 'params' object as input.
+Implement the endpoint as described by the user.
+Ensure the code is well-documented with JSDoc comments.
+The code should properly validate inputs and handle errors.
+Return a JSON object with necessary data.
+DO NOT use any external libraries or Node.js specific APIs.
+The endpoint should be stateless and not rely on external APIs.
+The function MUST be named 'endpoint_function'.`
+      : `You are an API endpoint generator that creates Python endpoints for a web application.
+Create a well-structured endpoint handler function named 'endpoint_function' that takes a 'params' dictionary as input.
+Implement the endpoint as described by the user.
+Ensure the code is well-documented with docstrings.
+The code should properly validate inputs and handle errors.
+Return a dictionary with necessary data.
+DO NOT use any external libraries except for Python standard library.
+The endpoint should be stateless and not rely on external APIs.
+The function MUST be named 'endpoint_function'.`;
+    
+    // Create a user prompt with detailed context
+    const userPrompt = `Create an endpoint that does the following: ${description}
+The endpoint will be registered at path: ${basePath}
+Please provide:
+1. An optimized path (optional, I'll use the default if not provided)
+2. Required parameters as an array of strings
+3. The endpoint implementation code in ${language}
+4. The HTTP method (GET or POST)
+
+The endpoint should process parameters from the request and return a JSON response.`;
+
+    // Call the language model to generate the endpoint
+    let generatedPath = basePath;
+    let parameters: string[] = [];
+    let code = '';
+    let httpMethod = 'GET';
+    
+    try {
+      console.log(`Generating ${language} endpoint for: ${description} using model: ${model}`);
+      
+      const { fullStream } = streamObject({
+        model: myProvider.languageModel(model),
+        system: systemPrompt,
+        prompt: userPrompt,
+        schema: endpointSchema,
+      });
+      
+      // Collect the response from the stream
+      let endpointResponse: z.infer<typeof endpointSchema> | undefined;
+      
+      for await (const delta of fullStream) {
+        const { type } = delta;
+        
+        if (type === 'object') {
+          const { object } = delta;
+          endpointResponse = object;
+        }
+      }
+      
+      if (endpointResponse) {
+        // Use the generated values, or fall back to defaults
+        generatedPath = endpointResponse.path || basePath;
+        parameters = endpointResponse.parameters || ['query'];
+        code = endpointResponse.code;
+        httpMethod = endpointResponse.httpMethod || 'GET';
+      } else {
+        throw new Error('Failed to generate endpoint: No valid response from model');
+      }
+    } catch (aiError) {
+      console.error('Error while generating endpoint with AI:', aiError);
+      
+      // Use fallback code if AI generation fails
+      if (language === 'javascript') {
+        code = `
 /**
- * Sample endpoint function for: ${description}
- * This is a mock implementation.
+ * Fallback endpoint function for: ${description}
+ * This is a simple implementation because AI generation failed.
  * 
  * @param {Object} params - The parameters passed to the endpoint
  * @param {string} params.query - The query parameter
@@ -146,14 +235,15 @@ function endpoint_function(params) {
     description: "${description}",
     query: query,
     timestamp: new Date().toISOString(),
-    result: "This is a mock result for: " + query
+    result: "Endpoint created without AI assistance. Query: " + query,
+    note: "AI generation failed, using fallback implementation"
   };
 }
 `;
-    } else {
-      mockCode = `
-# Sample endpoint function for: ${description}
-# This is a mock implementation.
+      } else {
+        code = `
+# Fallback endpoint function for: ${description}
+# This is a simple implementation because AI generation failed.
 #
 # Parameters:
 #   params (dict): The parameters passed to the endpoint
@@ -173,18 +263,26 @@ def endpoint_function(params):
         "description": "${description}",
         "query": query,
         "timestamp": datetime.now().isoformat(),
-        "result": f"This is a Python mock result for: {query}"
+        "result": f"Endpoint created without AI assistance. Query: {query}",
+        "note": "AI generation failed, using fallback implementation"
     }
 `;
+      }
+      
+      parameters = ['query'];
+      httpMethod = 'GET';
     }
 
-    const httpMethod = 'GET';
-
+    // Ensure path starts with /api/
+    if (!generatedPath.startsWith('/api/')) {
+      generatedPath = `/api/${projectName}/${generatedPath.replace(/^\//, '')}`;
+    }
+    
     // Create the endpoint in the database
     const newEndpoint = await createEndpoint({
-      path: endpointPath,
+      path: generatedPath,
       parameters,
-      code: mockCode,
+      code,
       httpMethod,
       language,
       projectId,
@@ -193,9 +291,9 @@ def endpoint_function(params):
 
     // Register the endpoint in the dynamic route manager
     await dynamicRouteManager.registerEndpoint(
-      endpointPath,
+      generatedPath,
       parameters,
-      mockCode,
+      code,
       httpMethod,
       language
     );
