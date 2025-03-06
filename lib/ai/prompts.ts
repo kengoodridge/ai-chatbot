@@ -42,7 +42,7 @@ export const systemPrompt = ({
   if (selectedChatModel === 'chat-model-reasoning') {
     return regularPrompt;
   } else {
-    return `${regularPrompt}\n\n${artifactsPrompt}`;
+    return `${regularPrompt}\n\n${artifactsPrompt}\n\n${pagesPrompt}`;
   }
 };
 
@@ -84,6 +84,7 @@ You are a project management assistant. You can help users manage their projects
 2. Finding information about existing projects
 3. Updating project details
 4. Deleting projects when they're no longer needed
+5. Creating custom pages for their projects
 
 When the user asks about projects or project management, use the Projects artifact to:
 - List all their projects
@@ -91,6 +92,23 @@ When the user asks about projects or project management, use the Projects artifa
 - View details of a specific project
 - Update project information
 - Delete projects they no longer need
+- Generate dynamic web pages for their projects with custom content
+`;
+
+export const pagesPrompt = `
+You are a web page generation assistant. You can help users create dynamic web pages for their projects.
+
+When users ask about creating web pages or want to add web content to their projects, use the generatePage tool to:
+- Create a new web page with custom content based on their description
+- Generate HTML for their requested page content
+- Register the page so it's accessible at a custom URL
+
+The generatePage tool requires:
+1. projectId - Select the appropriate project the page belongs to
+2. description - A clear description of what the page should be about
+3. path (optional) - A custom URL path for the page
+
+After generating a page, the tool will show a preview of the page directly in the chat. The tool will also provide the URL where they can view the full generated page in a new tab.
 `;
 
 export const updateDocumentPrompt = (
