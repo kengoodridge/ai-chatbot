@@ -13,6 +13,13 @@ export default function DynamicPage() {
     async function fetchPageContent() {
       if (!pathname) return;
       
+      // Skip API paths - they should be handled by the API route handlers
+      if (pathname.startsWith('/api/')) {
+        setError('Invalid path');
+        setLoading(false);
+        return;
+      }
+      
       try {
         // Attempt to fetch the page content
         const response = await fetch(`/api/pages/render?path=${encodeURIComponent(pathname)}`);

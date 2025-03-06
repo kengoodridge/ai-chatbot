@@ -32,6 +32,14 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  *               projectId:
  *                 type: string
  *                 description: ID of the project this endpoint belongs to
+ *     parameters:
+ *       - in: header
+ *         name: x-preferred-language
+ *         schema:
+ *           type: string
+ *           enum: [javascript, python]
+ *           default: javascript
+ *         description: Optional header to specify the preferred language for the endpoint
  *     responses:
  *       201:
  *         description: Endpoint generated and created successfully
@@ -108,11 +116,19 @@ export async function POST(request: NextRequest) {
     // Instead of using AI to generate the endpoint, we'll use a template based on the description
     const projectName = project.name.toLowerCase().replace(/\s+/g, '-');
     const endpointSlug = description.toLowerCase().replace(/\s+/g, '-');
-    const endpointPath = `/${projectName}/api/${endpointSlug}`;
+    const endpointPath = `/api/${projectName}/${endpointSlug}`;
     
-    // Create mock parameters and code based on the description
+    // Create mock parameters
     const parameters = ['query'];
-    const mockCode = `
+    
+    // Get the optional language parameter or default to JavaScript
+    const language = request.headers.get('x-preferred-language') === 'python' ? 'python' : 'javascript';
+    
+    // Create mock code based on the description and language
+    let mockCode;
+    
+    if (language === 'javascript') {
+      mockCode = `
 /**
  * Sample endpoint function for: ${description}
  * This is a mock implementation.
@@ -126,6 +142,7 @@ function endpoint_function(params) {
   
   return {
     success: true,
+    language: "javascript",
     description: "${description}",
     query: query,
     timestamp: new Date().toISOString(),
@@ -133,6 +150,33 @@ function endpoint_function(params) {
   };
 }
 `;
+    } else {
+      mockCode = `
+# Sample endpoint function for: ${description}
+# This is a mock implementation.
+#
+# Parameters:
+#   params (dict): The parameters passed to the endpoint
+#   params['query'] (str): The query parameter
+# Returns:
+#   dict: The response object
+
+import json
+from datetime import datetime
+
+def endpoint_function(params):
+    query = params.get('query', '')
+    
+    return {
+        "success": True,
+        "language": "python",
+        "description": "${description}",
+        "query": query,
+        "timestamp": datetime.now().isoformat(),
+        "result": f"This is a Python mock result for: {query}"
+    }
+`;
+    }
 
     const httpMethod = 'GET';
 
@@ -142,6 +186,7 @@ function endpoint_function(params) {
       parameters,
       code: mockCode,
       httpMethod,
+      language,
       projectId,
       userId: session.user.id,
     });
@@ -151,7 +196,8 @@ function endpoint_function(params) {
       endpointPath,
       parameters,
       mockCode,
-      httpMethod
+      httpMethod,
+      language
     );
 
     return withCorsHeaders(NextResponse.json(newEndpoint, { status: 201 }));

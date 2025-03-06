@@ -1,4 +1,5 @@
 import * as vm from 'node:vm';
+import { Python } from 'pythonia';
 import { 
   getAllEndpoints,
   getAllPages,
@@ -14,6 +15,8 @@ interface RouteInfo {
   parameters?: string[];
   httpMethod?: string;
   htmlContent?: string;
+  language?: 'javascript' | 'python';
+  pythonInstance?: any; // Store Python function reference
 }
 
 export class DynamicRouteManager {
@@ -40,7 +43,8 @@ export class DynamicRouteManager {
           endpoint.path,
           paramList,
           endpoint.code,
-          endpoint.httpMethod
+          endpoint.httpMethod,
+          endpoint.language as 'javascript' | 'python'
         );
       }
       
@@ -71,52 +75,138 @@ export class DynamicRouteManager {
     }
   }
 
-  async registerEndpoint(path: string, parameters: string[], code: string, httpMethod: string): Promise<void> {
-    console.log(`Registering endpoint ${path}`);
+  async registerEndpoint(
+    path: string, 
+    parameters: string[], 
+    code: string, 
+    httpMethod: string,
+    language: 'javascript' | 'python' = 'javascript'
+  ): Promise<void> {
+    console.log(`Registering endpoint ${path} (${language})`);
     
     try {
-      // Create a new context for the VM
-      const context = {
-        endpoint_function: null,
-        console: console
-      };
-      
-      // Use VM to execute the code safely
-      // Wrapped in a try-catch to handle execution errors
-      try {
-        const script = new vm.Script(`
-          ${code}
-          endpoint_function;
-        `);
+      if (language === 'javascript') {
+        // JavaScript execution using Node.js VM
+        // Create a new context for the VM
+        const context = {
+          endpoint_function: null,
+          console: console
+        };
         
-        const vmContext = vm.createContext(context);
-        const func = script.runInContext(vmContext);
-        
-        if (!func || typeof func !== 'function') {
-          throw new Error(`Invalid function definition in endpoint at ${path}`);
+        // Use VM to execute the code safely
+        // Wrapped in a try-catch to handle execution errors
+        try {
+          const script = new vm.Script(`
+            ${code}
+            endpoint_function;
+          `);
+          
+          const vmContext = vm.createContext(context);
+          const func = script.runInContext(vmContext);
+          
+          if (!func || typeof func !== 'function') {
+            throw new Error(`Invalid function definition in endpoint at ${path}`);
+          }
+          
+          // Store in dynamic routes dictionary
+          this.dynamicRoutes[path] = {
+            type: 'endpoint',
+            path,
+            parameters,
+            function: func,
+            httpMethod,
+            language: 'javascript'
+          };
+        } catch (execError) {
+          console.error(`Error compiling JavaScript code for endpoint ${path}:`, execError);
+          // Store a placeholder function that returns an error
+          this.dynamicRoutes[path] = {
+            type: 'endpoint',
+            path,
+            parameters,
+            function: () => ({ 
+              error: 'JavaScript endpoint code compilation error', 
+              details: execError instanceof Error ? execError.message : String(execError) 
+            }),
+            httpMethod,
+            language: 'javascript'
+          };
         }
-        
-        // Store in dynamic routes dictionary
-        this.dynamicRoutes[path] = {
-          type: 'endpoint',
-          path,
-          parameters,
-          function: func,
-          httpMethod
-        };
-      } catch (execError) {
-        console.error(`Error compiling code for endpoint ${path}:`, execError);
-        // Store a placeholder function that returns an error
-        this.dynamicRoutes[path] = {
-          type: 'endpoint',
-          path,
-          parameters,
-          function: () => ({ 
-            error: 'Endpoint code compilation error', 
-            details: execError instanceof Error ? execError.message : String(execError) 
-          }),
-          httpMethod
-        };
+      } else if (language === 'python') {
+        // Python execution using pythonia
+        try {
+          // First, register a placeholder function while Python loads (async)
+          this.dynamicRoutes[path] = {
+            type: 'endpoint',
+            path,
+            parameters,
+            function: () => ({ 
+              error: 'Python endpoint is still initializing', 
+              status: 'loading' 
+            }),
+            httpMethod,
+            language: 'python'
+          };
+          
+          // Create a Python wrapper for the code
+          const pythonWrapper = `
+def endpoint_function(params):
+    try:
+${code.split('\n').map(line => '        ' + line).join('\n')}
+    except Exception as e:
+        return {"error": f"Python execution error: {str(e)}"}
+          `;
+          
+          // Initialize Python interpreter
+          const py = await Python.startup();
+          
+          // Execute the Python code
+          await py.exec(pythonWrapper);
+          
+          // Get the Python function
+          const pyFunc = await py.eval('endpoint_function');
+          
+          // Store in dynamic routes dictionary with Python function reference
+          this.dynamicRoutes[path] = {
+            type: 'endpoint',
+            path,
+            parameters,
+            // Create a JavaScript function that calls the Python function
+            function: async (params: any) => {
+              try {
+                // Convert params to Python compatible format
+                const result = await pyFunc(params);
+                // Convert result back to JavaScript
+                return JSON.parse(await result.toString());
+              } catch (error) {
+                console.error(`Error executing Python endpoint ${path}:`, error);
+                return {
+                  error: 'Python execution error',
+                  details: error instanceof Error ? error.message : String(error)
+                };
+              }
+            },
+            httpMethod,
+            language: 'python',
+            pythonInstance: pyFunc
+          };
+        } catch (execError) {
+          console.error(`Error compiling Python code for endpoint ${path}:`, execError);
+          // Store a placeholder function that returns an error
+          this.dynamicRoutes[path] = {
+            type: 'endpoint',
+            path,
+            parameters,
+            function: () => ({ 
+              error: 'Python endpoint code compilation error', 
+              details: execError instanceof Error ? execError.message : String(execError) 
+            }),
+            httpMethod,
+            language: 'python'
+          };
+        }
+      } else {
+        throw new Error(`Unsupported language: ${language}`);
       }
     } catch (error) {
       console.error(`Error registering endpoint ${path}:`, error);
@@ -145,14 +235,32 @@ export class DynamicRouteManager {
     const endpoint = await getEndpointByPath({ path });
     if (endpoint) {
       const paramList = endpoint.parameters ? endpoint.parameters.split(',') : [];
+      
+      // Clean up any previous Python instance if it exists
+      if (this.dynamicRoutes[path]?.pythonInstance) {
+        try {
+          await this.dynamicRoutes[path].pythonInstance.destroy();
+        } catch (error) {
+          console.error(`Error cleaning up Python instance for ${path}:`, error);
+        }
+      }
+      
       await this.registerEndpoint(
         endpoint.path,
         paramList,
         endpoint.code,
-        endpoint.httpMethod
+        endpoint.httpMethod,
+        endpoint.language as 'javascript' | 'python'
       );
     } else {
-      // If endpoint no longer exists in DB, remove it from in-memory routes
+      // If endpoint no longer exists in DB, clean up and remove it from in-memory routes
+      if (this.dynamicRoutes[path]?.pythonInstance) {
+        try {
+          await this.dynamicRoutes[path].pythonInstance.destroy();
+        } catch (error) {
+          console.error(`Error cleaning up Python instance for ${path}:`, error);
+        }
+      }
       delete this.dynamicRoutes[path];
     }
   }
@@ -177,7 +285,24 @@ export class DynamicRouteManager {
     
     console.log(`Dynamic handler received: ${path}`);
     
-    const sanitizedPath = this.sanitizePath(path);
+    // Remove /api prefix if it exists (for compatibility with Next.js routing)
+    let processedPath = path;
+    if (processedPath.startsWith('/api')) {
+      // We might get /api/api/... if the [...path] handler prefixes /api
+      if (processedPath.startsWith('/api/api/')) {
+        processedPath = processedPath.replace('/api/api/', '/api/');
+      }
+    } else {
+      // If path doesn't start with /api, add it for compatibility with registration
+      processedPath = '/api' + processedPath;
+    }
+    
+    console.log(`Processed path: ${processedPath}`);
+    const sanitizedPath = this.sanitizePath(processedPath);
+    
+    // Enhanced debugging
+    console.log(`Available routes: ${JSON.stringify(Object.keys(this.dynamicRoutes))}`);
+    console.log(`Looking for path: ${sanitizedPath}`);
     
     // Check if path exists in our dynamic routes
     if (this.dynamicRoutes[sanitizedPath]) {
@@ -204,7 +329,7 @@ export class DynamicRouteManager {
         
         try {
           // Execute the dynamic function
-          const result = route.function(params);
+          const result = await Promise.resolve(route.function(params));
           return NextResponse.json(result);
         } catch (error) {
           console.error(`Error executing endpoint ${sanitizedPath}:`, error);

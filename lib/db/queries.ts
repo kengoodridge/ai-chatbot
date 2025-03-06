@@ -544,6 +544,7 @@ export async function createEndpoint({
   parameters,
   code,
   httpMethod,
+  language = 'javascript',
   projectId,
   userId,
 }: {
@@ -551,6 +552,7 @@ export async function createEndpoint({
   parameters: string[];
   code: string;
   httpMethod: string;
+  language?: 'javascript' | 'python';
   projectId: string;
   userId: string;
 }): Promise<Endpoint> {
@@ -564,6 +566,7 @@ export async function createEndpoint({
       parameters: parameters.join(','),
       code,
       httpMethod,
+      language,
       projectId,
       userId,
       createdAt: new Date(),
@@ -1018,6 +1021,7 @@ export async function updateEndpoint({
   parameters,
   code,
   httpMethod,
+  language,
   userId,
 }: {
   id: string;
@@ -1025,6 +1029,7 @@ export async function updateEndpoint({
   parameters?: string[];
   code?: string;
   httpMethod?: string;
+  language?: 'javascript' | 'python';
   userId: string;
 }): Promise<boolean> {
   try {
@@ -1034,6 +1039,7 @@ export async function updateEndpoint({
     if (parameters !== undefined) updateData.parameters = parameters.join(',');
     if (code !== undefined) updateData.code = code;
     if (httpMethod !== undefined) updateData.httpMethod = httpMethod;
+    if (language !== undefined) updateData.language = language;
     
     if (Object.keys(updateData).length === 0) {
       return false;

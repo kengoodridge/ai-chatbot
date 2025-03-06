@@ -146,7 +146,8 @@ export const endpoint = sqliteTable('Endpoint', {
   id: text('id').primaryKey().notNull().$defaultFn(() => createId()),
   path: text('path').notNull(),
   parameters: text('parameters'), // Stored as comma-separated string
-  code: text('code').notNull(), // JavaScript code to be executed
+  code: text('code').notNull(), // Code to be executed
+  language: text('language', { enum: ['javascript', 'python'] }).notNull().default('javascript'),
   httpMethod: text('httpMethod').notNull().default('GET'),
   projectId: text('projectId')
     .notNull()

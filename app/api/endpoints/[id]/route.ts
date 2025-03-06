@@ -133,12 +133,16 @@ export async function GET(
  *                 description: URL path for the endpoint
  *               code:
  *                 type: string
- *                 description: JavaScript code implementing the endpoint_function
+ *                 description: Code implementing the endpoint function (JavaScript or Python)
  *               parameters:
  *                 type: array
  *                 items:
  *                   type: string
  *                 description: Parameter names this endpoint expects
+ *               language:
+ *                 type: string
+ *                 enum: [javascript, python]
+ *                 description: Programming language of the code
  *               httpMethod:
  *                 type: string
  *                 enum: [GET, POST]
@@ -196,9 +200,18 @@ export async function PUT(
     const data = await request.json();
 
     if (!data || (data.path === undefined && data.code === undefined && 
-                  data.parameters === undefined && data.httpMethod === undefined)) {
+                  data.parameters === undefined && data.httpMethod === undefined &&
+                  data.language === undefined)) {
       return withCorsHeaders(NextResponse.json(
         { error: 'No data provided' },
+        { status: 400 }
+      ));
+    }
+    
+    // Validate language if provided
+    if (data.language !== undefined && data.language !== 'javascript' && data.language !== 'python') {
+      return withCorsHeaders(NextResponse.json(
+        { error: 'Language must be either "javascript" or "python"' },
         { status: 400 }
       ));
     }
@@ -209,6 +222,7 @@ export async function PUT(
       parameters: data.parameters,
       code: data.code,
       httpMethod: data.httpMethod,
+      language: data.language,
       userId: session.user.id,
     });
 

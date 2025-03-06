@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   }
 
   // For security, only allow certain users to view this debug information
-  // In a production environment, you would want to restrict this further
+  // In production, you would want to restrict this further
   // or remove this endpoint entirely
   if (!session.user.email.endsWith('@yourdomain.com') && session.user.email !== 'admin@example.com') {
     return withCorsHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));

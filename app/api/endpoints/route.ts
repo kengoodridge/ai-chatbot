@@ -36,12 +36,17 @@ export const dynamic = 'force-dynamic'; // Ensures the route is not statically o
  *                 description: URL path for the endpoint (must be unique)
  *               code:
  *                 type: string
- *                 description: JavaScript code implementing the endpoint_function
+ *                 description: Code implementing the endpoint function (JavaScript or Python)
  *               parameters:
  *                 type: array
  *                 items:
  *                   type: string
  *                 description: Parameter names this endpoint expects
+ *               language:
+ *                 type: string
+ *                 enum: [javascript, python]
+ *                 default: javascript
+ *                 description: Programming language of the code
  *               httpMethod:
  *                 type: string
  *                 enum: [GET, POST]
@@ -95,11 +100,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { path, code, parameters = [], httpMethod = 'GET', projectId } = await request.json();
+    const { path, code, parameters = [], httpMethod = 'GET', projectId, language = 'javascript' } = await request.json();
 
     if (!path || !code || !projectId) {
       return withCorsHeaders(NextResponse.json(
         { error: 'Path, code, and project ID are required' },
+        { status: 400 }
+      ));
+    }
+    
+    // Validate language
+    if (language !== 'javascript' && language !== 'python') {
+      return withCorsHeaders(NextResponse.json(
+        { error: 'Language must be either "javascript" or "python"' },
         { status: 400 }
       ));
     }
@@ -121,14 +134,15 @@ export async function POST(request: NextRequest) {
     const projectName = project.name.toLowerCase().replace(/\s+/g, '-');
     let sanitizedPath = path.startsWith('/') ? path : `/${path}`;
     
-    // Create full path with project name and /api prefix
-    const fullPath = `/${projectName}/api${sanitizedPath}`;
+    // Create full path with api prefix and project name
+    const fullPath = `/api/${projectName}${sanitizedPath}`;
 
     const newEndpoint = await createEndpoint({
       path: fullPath,
       parameters,
       code,
       httpMethod: httpMethod.toUpperCase(),
+      language,
       projectId,
       userId: session.user.id,
     });
@@ -138,7 +152,8 @@ export async function POST(request: NextRequest) {
       fullPath,
       parameters,
       code,
-      httpMethod.toUpperCase()
+      httpMethod.toUpperCase(),
+      language
     );
 
     return withCorsHeaders(NextResponse.json(newEndpoint, { status: 201 }));
