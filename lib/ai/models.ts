@@ -15,7 +15,7 @@ const openai = createOpenAI({
 })
 
 
-export const DEFAULT_CHAT_MODEL: string = 'chat-model-small';
+export const DEFAULT_CHAT_MODEL: string = 'gemini';
 
 // Use type assertion to bypass the type checking issues
 export const myProvider = customProvider({

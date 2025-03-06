@@ -2,6 +2,10 @@ import { auth } from '@/app/(auth)/auth';
 import { createPage, getProjectById } from '@/lib/db/queries';
 import { NextRequest, NextResponse } from 'next/server';
 import { corsMiddleware, withCorsHeaders } from '../../cors';
+import { z } from 'zod';
+import { streamObject } from 'ai';
+
+const { myProvider, DEFAULT_CHAT_MODEL } = await import('@/lib/ai/models');
 
 export const dynamic = 'force-dynamic'; // Make sure the route is not statically optimized
 
@@ -31,6 +35,9 @@ export const dynamic = 'force-dynamic'; // Make sure the route is not statically
  *               projectId:
  *                 type: string
  *                 description: ID of the project this page belongs to
+ *               model:
+ *                 type: string
+ *                 description: Optional model ID to use for generation (default is chat-model-small)
  *     responses:
  *       201:
  *         description: Page generated and created successfully
@@ -75,13 +82,24 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { description, projectId } = await request.json();
+    const { description, projectId, model = DEFAULT_CHAT_MODEL } = await request.json();
 
     if (!description || !projectId) {
       return withCorsHeaders(NextResponse.json(
         { error: 'Description and project ID are required' },
         { status: 400 }
       ));
+    }
+    
+    // Validate model
+    try {
+      if (!myProvider.languageModel || !myProvider.languageModel(model)) {
+        console.warn(`Model validation failed - using default model. Requested: ${model}`);
+        // Don't error out - we'll use the default model if the specified one doesn't exist
+      }
+    } catch (modelError) {
+      console.error('Error validating model:', modelError);
+      // Continue with default model if there's an error
     }
 
     // Verify the project exists and belongs to the user
@@ -98,70 +116,182 @@ export async function POST(request: NextRequest) {
       ));
     }
 
-    // MOCK IMPLEMENTATION ONLY
-    // Instead of using AI to generate content, we'll use a template with the description
+    // Use AI to generate the page content
     const projectName = project.name.toLowerCase().replace(/\s+/g, '-');
-    const pagePath = `/${projectName}/${description.toLowerCase().replace(/\s+/g, '-')}`;
+    const pageSlug = description.toLowerCase().replace(/\s+/g, '-');
+    const pagePath = `/${projectName}/${pageSlug}`;
     
-    const mockHtmlContent = `
+    // Define a schema for the AI response
+    const pageSchema = z.object({
+      path: z.string().optional(),
+      htmlContent: z.string(),
+    });
+    
+    // Create a system prompt for generating a web page
+    const systemPrompt = `You are a web page generator that creates modern, responsive HTML pages.
+Create a complete HTML page that includes:
+1. Proper HTML5 structure with doctype and meta tags
+2. CSS styling using modern best practices (prefer internal CSS for this case)
+3. Responsive design that works on mobile and desktop
+4. Optional JavaScript for interactivity if appropriate
+5. Well-structured content that matches the description
+
+Your page should:
+- Be visually appealing and professional
+- Use semantic HTML elements
+- Include meaningful content related to the description
+- Be complete and ready to render in a browser
+- Be accessible and follow web standards
+- Use modern design patterns
+- Include Bootstrap or other common CSS libraries
+
+Avoid:
+- External resources that may not be available
+- Overly complex JavaScript
+- Placeholder content (create meaningful content based on the description)
+- Incomplete implementations`;
+    
+    // Create a user prompt with detailed context
+    const userPrompt = `Create a web page about: ${description}
+This page will be registered at path: ${pagePath}
+The page is for project: ${project.name}
+
+Please provide:
+1. An optimized path (optional, I'll use the default if not provided)
+2. The complete HTML content for the page
+
+The HTML should be a complete page that can be rendered directly in a browser.`;
+
+    // Call the language model to generate the page
+    let generatedPath = pagePath;
+    let htmlContent = '';
+    
+    try {
+      console.log(`Generating page for: ${description} using model: ${model}`);
+      
+      // Use a default model if the specified model is not available
+      let modelToUse = model;
+      try {
+        if (!myProvider.languageModel(model)) {
+          console.warn(`Specified model ${model} not available, falling back to ${DEFAULT_CHAT_MODEL}`);
+          modelToUse = DEFAULT_CHAT_MODEL;
+        }
+      } catch (err) {
+        console.warn(`Error accessing model, falling back to default: ${err}`);
+        modelToUse = DEFAULT_CHAT_MODEL;
+      }
+      
+      const { fullStream } = streamObject({
+        model: myProvider.languageModel(modelToUse),
+        system: systemPrompt,
+        prompt: userPrompt,
+        schema: pageSchema,
+      });
+      
+      // Collect the response from the stream
+      let pageResponse: z.infer<typeof pageSchema> | undefined;
+      
+      for await (const delta of fullStream) {
+        const { type } = delta;
+        
+        if (type === 'object') {
+          const { object } = delta;
+          pageResponse = object;
+        }
+      }
+      
+      if (pageResponse) {
+        // Use the generated values, or fall back to defaults
+        generatedPath = pageResponse.path || pagePath;
+        htmlContent = pageResponse.htmlContent;
+      } else {
+        throw new Error('Failed to generate page: No valid response from model');
+      }
+    } catch (aiError) {
+      console.error('Error while generating page with AI:', aiError);
+      
+      // Use fallback HTML if AI generation fails
+      htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${description}</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-            max-width: 800px;
-            margin: 0 auto;
+            padding-top: 2rem;
+            padding-bottom: 2rem;
         }
-        h1 {
-            color: #2c3e50;
-        }
-        .card {
-            border: 1px solid #e1e1e1;
-            border-radius: 5px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        .fallback-notice {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 1rem;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
 <body>
-    <div id="root"></div>
-
-    <script type="text/babel">
-        function App() {
-            const [data, setData] = React.useState({ title: "${description}", content: "This is a mock generated page. Replace with AI-generated content in the future." });
-            
-            return (
-                <div>
-                    <h1>{data.title}</h1>
-                    <div className="card">
-                        <p>{data.content}</p>
+    <div class="container">
+        <div class="fallback-notice">
+            <p>Note: This is a fallback page created because AI generation failed. You can update this page with your content.</p>
+        </div>
+        
+        <h1>${description}</h1>
+        
+        <div class="card my-4">
+            <div class="card-body">
+                <h5 class="card-title">About this page</h5>
+                <p class="card-text">This page was created for the project: ${project.name}</p>
+                <p class="card-text">It serves as a starting point that you can customize with your own content.</p>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Features</h5>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">Responsive design</li>
+                            <li class="list-group-item">Bootstrap integration</li>
+                            <li class="list-group-item">Clean layout</li>
+                        </ul>
                     </div>
-                    <p>This page was generated for project: ${project.name}</p>
                 </div>
-            );
-        }
-
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Next Steps</h5>
+                        <p>You can edit this page to add your content.</p>
+                        <p>The path for this page is: ${pagePath}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="mt-5 pt-3 border-top text-muted">
+            <p>Generated page for ${project.name}</p>
+        </footer>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-`;
+      `;
+    }
 
+    // Ensure path doesn't start with /api/ (reserved for endpoints)
+    if (generatedPath.startsWith('/api/')) {
+      generatedPath = `/${projectName}/${generatedPath.replace(/^\/api\/[^\/]+\//, '')}`;
+    }
+    
     // Create the page in the database
     const newPage = await createPage({
-      path: pagePath,
-      htmlContent: mockHtmlContent,
+      path: generatedPath,
+      htmlContent: htmlContent,
       projectId,
       userId: session.user.id,
     });
